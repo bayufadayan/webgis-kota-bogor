@@ -19,6 +19,98 @@
     <link rel="stylesheet" href="css/leaflet-control-geocoder.Geocoder.css" />
     <link rel="stylesheet" href="css/leaflet-measure.css" />
     <link rel="stylesheet" href="style.css" />
+    <style>
+      /* ── Modern Popup Card ───────────────────────────────────────── */
+      .leaflet-popup-content-wrapper {
+        border-radius: 14px;
+        box-shadow: 0 10px 32px rgba(0,0,0,.18);
+        padding: 0;
+        overflow: hidden;
+        border: none;
+      }
+      .leaflet-popup-content {
+        margin: 0;
+        width: auto !important;
+        min-width: 230px;
+      }
+      .leaflet-popup-tip {
+        box-shadow: none;
+      }
+      .popup-card {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px;
+      }
+      .popup-header {
+        padding: 13px 16px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #fff;
+      }
+      .popup-header--map    { background: linear-gradient(135deg,#2563eb,#1d4ed8); }
+      .popup-header--temp   { background: linear-gradient(135deg,#ea580c,#c2410c); }
+      .popup-header--monitor{ background: linear-gradient(135deg,#0891b2,#0e7490); }
+      .popup-header i { font-size: 15px; opacity: .9; flex-shrink: 0; }
+      .popup-header h4 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: normal;
+      }
+      .popup-body {
+        padding: 10px 16px 12px;
+        background: #fff;
+      }
+      .popup-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .popup-row:last-child { border-bottom: none; padding-bottom: 0; }
+      .popup-row > i {
+        color: #6b7280;
+        width: 14px;
+        text-align: center;
+        margin-top: 3px;
+        flex-shrink: 0;
+        font-size: 12px;
+      }
+      .popup-row-content { flex: 1; min-width: 0; }
+      .popup-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        color: #9ca3af;
+        margin-bottom: 2px;
+      }
+      .popup-value {
+        color: #111827;
+        font-weight: 500;
+        word-break: break-word;
+      }
+      .suhu-badge {
+        display: inline-block;
+        background: linear-gradient(135deg,#ef4444,#dc2626);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 3px 12px;
+        border-radius: 20px;
+        letter-spacing: .3px;
+      }
+      .popup-img {
+        width: 100%;
+        max-height: 135px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-top: 5px;
+        display: block;
+      }
+    </style>
     <title>Maps | Monitoring Suhu dan Kelembaban Kota Bogor</title>
   </head>
   <body>
@@ -26,7 +118,7 @@
       <aside id="sidebar">
         <div class="sidebar-head">
           <div class="sidebar-title">
-            <button id="toggle-btn">☰</button>
+            <button id="toggle-btn"><i class="fas fa-bars"></i></button>
             <h2>My WebGIS</h2>
           </div>
           <div class="sidebar-subtitle">
@@ -35,13 +127,13 @@
         </div>
         <ul>
           <li>
-            <a href="index.html">🏠<span class="nav-labels">Home</span></a>
+            <a href="index.html"><i class="fas fa-home"></i><span class="nav-labels">Home</span></a>
           </li>
           <li>
-            <a href="maps.html">🗺️<span class="nav-labels">Maps</span></a>
+            <a href="maps.html"><i class="fas fa-map"></i><span class="nav-labels">Maps</span></a>
           </li>
           <li>
-            <a href="about.html">👤<span class="nav-labels">About</span></a>
+            <a href="about.html"><i class="fas fa-user"></i><span class="nav-labels">About</span></a>
           </li>
         </ul>
       </aside>
@@ -274,16 +366,21 @@
       function removeEmptyRowsFromPopupContent(content, feature) {
         var tempDiv = document.createElement("div");
         tempDiv.innerHTML = content;
+        // legacy table rows
         var rows = tempDiv.querySelectorAll("tr");
         for (var i = 0; i < rows.length; i++) {
           var td = rows[i].querySelector("td.visible-with-data");
           var key = td ? td.id : "";
-          if (
-            td &&
-            td.classList.contains("visible-with-data") &&
-            feature.properties[key] == null
-          ) {
+          if (td && td.classList.contains("visible-with-data") && feature.properties[key] == null) {
             rows[i].parentNode.removeChild(rows[i]);
+          }
+        }
+        // modern div rows with data-field attribute
+        var divRows = tempDiv.querySelectorAll(".popup-row[data-field]");
+        for (var j = divRows.length - 1; j >= 0; j--) {
+          var field = divRows[j].getAttribute("data-field");
+          if (field && (feature.properties[field] == null || feature.properties[field] === "")) {
+            divRows[j].parentNode.removeChild(divRows[j]);
           }
         }
         return tempDiv.innerHTML;
@@ -292,12 +389,9 @@
       function addClassToPopupIfMedia(content, popup) {
         var tempDiv = document.createElement("div");
         tempDiv.innerHTML = content;
-        if (tempDiv.querySelector("td img")) {
+        if (tempDiv.querySelector("td img") || tempDiv.querySelector(".popup-img")) {
           popup._contentNode.classList.add("media");
-          // Delay to force the redraw
-          setTimeout(function () {
-            popup.update();
-          }, 10);
+          setTimeout(function () { popup.update(); }, 10);
         } else {
           popup._contentNode.classList.remove("media");
         }
@@ -370,37 +464,20 @@
           mouseover: highlightFeature,
         });
         var popupContent =
-          '<table>\
-                    <tr>\
-                        <td colspan="2"><strong>KDPPUM</strong><br />' +
-          (feature.properties["KDPPUM"] !== null
-            ? autolinker.link(feature.properties["KDPPUM"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <td colspan="2"><strong>NAMOBJ</strong><br />' +
-          (feature.properties["NAMOBJ"] !== null
-            ? autolinker.link(feature.properties["NAMOBJ"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <th scope="row">REMARK</th>\
-                        <td>' +
-          (feature.properties["REMARK"] !== null
-            ? autolinker.link(feature.properties["REMARK"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <td class="visible-with-data" id="SRS_ID"colspan="2"><strong>SRS_ID</strong><br />' +
-          (feature.properties["SRS_ID"] !== null
-            ? autolinker.link(feature.properties["SRS_ID"].toLocaleString())
-            : "") +
-          "</td>\
-                    </tr>\
-                </table>";
+          '<div class="popup-card">' +
+          '<div class="popup-header popup-header--map"><i class="fas fa-map-marked-alt"></i>' +
+          '<h4>' + (feature.properties["NAMOBJ"] !== null ? autolinker.link(feature.properties["NAMOBJ"].toLocaleString()) : 'Wilayah') + '</h4></div>' +
+          '<div class="popup-body">' +
+          '<div class="popup-row"><i class="fas fa-hashtag"></i><div class="popup-row-content"><div class="popup-label">Kode Wilayah</div><div class="popup-value">' +
+          (feature.properties["KDPPUM"] !== null ? autolinker.link(feature.properties["KDPPUM"].toLocaleString()) : '-') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="REMARK"><i class="fas fa-sticky-note"></i><div class="popup-row-content"><div class="popup-label">Keterangan</div><div class="popup-value">' +
+          (feature.properties["REMARK"] !== null ? autolinker.link(feature.properties["REMARK"].toLocaleString()) : '') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="SRS_ID"><i class="fas fa-globe"></i><div class="popup-row-content"><div class="popup-label">SRS ID</div><div class="popup-value">' +
+          (feature.properties["SRS_ID"] !== null ? autolinker.link(feature.properties["SRS_ID"].toLocaleString()) : '') +
+          '</div></div></div>' +
+          '</div></div>';
         var content = removeEmptyRowsFromPopupContent(popupContent, feature);
         layer.on("popupopen", function (e) {
           addClassToPopupIfMedia(content, e.popup);
@@ -1972,66 +2049,26 @@
           mouseover: highlightFeature,
         });
         var popupContent =
-          '<table>\
-                    <tr>\
-                        <td colspan="2">' +
-          (feature.properties["NAMOBJ"] !== null
-            ? autolinker.link(feature.properties["NAMOBJ"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <th scope="row">REMARK</th>\
-                        <td class="visible-with-data" id="REMARK">' +
-          (feature.properties["REMARK"] !== null
-            ? autolinker.link(feature.properties["REMARK"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <th scope="row">path</th>\
-                        <td>' +
-          (feature.properties["path"] !== null
-            ? autolinker.link(feature.properties["path"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <th scope="row">Suhu</th>\
-                        <td>' +
-          (feature.properties["Suhu"] !== null
-            ? autolinker.link(feature.properties["Suhu"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <th scope="row">xcoord</th>\
-                        <td>' +
-          (feature.properties["xcoord"] !== null
-            ? autolinker.link(feature.properties["xcoord"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <th scope="row">ycoord</th>\
-                        <td>' +
-          (feature.properties["ycoord"] !== null
-            ? autolinker.link(feature.properties["ycoord"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <td colspan="2"><strong>Foto</strong><br />' +
-          (feature.properties["Foto"] !== null
-            ? '<img src="images/' +
-              String(feature.properties["Foto"])
-                .replace(/[\\\/:]/g, "_")
-                .trim() +
-              '">'
-            : "") +
-          "</td>\
-                    </tr>\
-                </table>";
+          '<div class="popup-card">' +
+          '<div class="popup-header popup-header--temp"><i class="fas fa-thermometer-half"></i>' +
+          '<h4>' + (feature.properties["NAMOBJ"] !== null ? autolinker.link(feature.properties["NAMOBJ"].toLocaleString()) : 'Radius Suhu') + '</h4></div>' +
+          '<div class="popup-body">' +
+          '<div class="popup-row" data-field="Suhu"><i class="fas fa-fire-alt"></i><div class="popup-row-content"><div class="popup-label">Suhu</div><div class="popup-value">' +
+          (feature.properties["Suhu"] !== null ? '<span class="suhu-badge">' + feature.properties["Suhu"].toLocaleString() + ' °C</span>' : '-') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="xcoord"><i class="fas fa-crosshairs"></i><div class="popup-row-content"><div class="popup-label">Longitude</div><div class="popup-value">' +
+          (feature.properties["xcoord"] !== null ? autolinker.link(feature.properties["xcoord"].toLocaleString()) : '-') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="ycoord"><i class="fas fa-crosshairs"></i><div class="popup-row-content"><div class="popup-label">Latitude</div><div class="popup-value">' +
+          (feature.properties["ycoord"] !== null ? autolinker.link(feature.properties["ycoord"].toLocaleString()) : '-') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="REMARK"><i class="fas fa-info-circle"></i><div class="popup-row-content"><div class="popup-label">Keterangan</div><div class="popup-value">' +
+          (feature.properties["REMARK"] !== null ? autolinker.link(feature.properties["REMARK"].toLocaleString()) : '') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="Foto"><i class="fas fa-image"></i><div class="popup-row-content"><div class="popup-label">Foto</div>' +
+          (feature.properties["Foto"] !== null ? '<img class="popup-img" src="images/' + String(feature.properties["Foto"]).replace(/[\\\/:]/g, "_").trim() + '" />' : '') +
+          '</div></div>' +
+          '</div></div>';
         var content = removeEmptyRowsFromPopupContent(popupContent, feature);
         layer.on("popupopen", function (e) {
           addClassToPopupIfMedia(content, e.popup);
@@ -2197,29 +2234,17 @@
           mouseover: highlightFeature,
         });
         var popupContent =
-          '<table>\
-                    <tr>\
-                        <td colspan="2"><strong>NAMOBJ</strong><br />' +
-          (feature.properties["NAMOBJ"] !== null
-            ? autolinker.link(feature.properties["NAMOBJ"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <td colspan="2"><strong>HubDist</strong><br />' +
-          (feature.properties["HubDist"] !== null
-            ? autolinker.link(feature.properties["HubDist"].toLocaleString())
-            : "") +
-          '</td>\
-                    </tr>\
-                    <tr>\
-                        <td colspan="2"><strong>Suhu</strong><br />' +
-          (feature.properties["Suhu"] !== null
-            ? autolinker.link(feature.properties["Suhu"].toLocaleString())
-            : "") +
-          "</td>\
-                    </tr>\
-                </table>";
+          '<div class="popup-card">' +
+          '<div class="popup-header popup-header--monitor"><i class="fas fa-map-pin"></i>' +
+          '<h4>' + (feature.properties["NAMOBJ"] !== null ? autolinker.link(feature.properties["NAMOBJ"].toLocaleString()) : 'Titik Pemantauan') + '</h4></div>' +
+          '<div class="popup-body">' +
+          '<div class="popup-row" data-field="Suhu"><i class="fas fa-thermometer-half"></i><div class="popup-row-content"><div class="popup-label">Suhu</div><div class="popup-value">' +
+          (feature.properties["Suhu"] !== null ? '<span class="suhu-badge">' + feature.properties["Suhu"].toLocaleString() + ' °C</span>' : '-') +
+          '</div></div></div>' +
+          '<div class="popup-row" data-field="HubDist"><i class="fas fa-ruler-horizontal"></i><div class="popup-row-content"><div class="popup-label">Jarak ke Pusat</div><div class="popup-value">' +
+          (feature.properties["HubDist"] !== null ? autolinker.link(feature.properties["HubDist"].toLocaleString()) + ' m' : '-') +
+          '</div></div></div>' +
+          '</div></div>';
         var content = removeEmptyRowsFromPopupContent(popupContent, feature);
         layer.on("popupopen", function (e) {
           addClassToPopupIfMedia(content, e.popup);
